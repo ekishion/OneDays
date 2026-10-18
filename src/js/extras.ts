@@ -1,22 +1,9 @@
 import { APP_CONFIG } from './config';
 import { createToast } from './core';
-import { setMemReleased, MEM_RELEASED, MEM_RELEASED_LEVEL, UPDATE_LOCK } from './shared-state';
 
-const accents: string[] = APP_CONFIG.accents || [];
-const integratedAccent: boolean = (window as any).__THEME_PANEL_SUPPORTS_ACCENTS__ === true;
 const reducedMotion: boolean = matchMedia('(prefers-reduced-motion: reduce)').matches;
-let lowPower = false;
-try {
-  lowPower = matchMedia('(prefers-reduced-data: reduce)').matches;
-} catch (_) {}
 
-let cleanups: Array<() => void> = [];
-let closeAsciiPanel: (() => void) | null = null;
-let idleReleasedLevel1 = false;
-const root: HTMLElement = document.documentElement;
-const body: HTMLElement = document.body;
-
-// ===== Helper: build functions (shared by restore/init) =====
+// ===== Scroll progress bar =====
 function buildScrollProgress(): void {
   if (!APP_CONFIG.enableScrollProgress || document.querySelector('.scroll-progress'))
     return;
@@ -45,82 +32,9 @@ function buildScrollProgress(): void {
   };
   document.addEventListener('visibilitychange', vis);
   calc();
-  cleanups.push(() => {
-    ['scroll', 'resize'].forEach((ev: string) =>
-      window.removeEventListener(ev, onScroll),
-    );
-    document.removeEventListener('visibilitychange', vis);
-    bar.remove();
-  });
 }
 
-function bindAccentPanel(): void {
-  if (!APP_CONFIG.enableAccentPanel || accents.length < 2 || integratedAccent)
-    return;
-  const themeBtn = document.getElementById('themeToggle');
-  if (!themeBtn || (themeBtn as HTMLElement).dataset.accentBound) return;
-  (themeBtn as HTMLElement).dataset.accentBound = '1';
-  let pressTimer: ReturnType<typeof setTimeout> | null = null,
-    panel: HTMLDivElement | null = null;
-  const showPanel = (): void => {
-    if (panel) return;
-    panel = document.createElement('div');
-    panel.className = 'accent-panel';
-    accents.forEach((c: string, i: number) => {
-      const b = document.createElement('button');
-      b.className = 'accent-dot';
-      b.style.background = c;
-      b.title = c;
-      b.addEventListener('click', () => {
-        try {
-          root.style.setProperty('--accent', c);
-          localStorage.setItem('onedays-accent', String(i));
-          panel!
-            .querySelectorAll('.accent-dot')
-            .forEach((d) => d.classList.remove('active'));
-          b.classList.add('active');
-        } catch (_) {}
-      });
-      if (getComputedStyle(root).getPropertyValue('--accent').trim() === c)
-        b.classList.add('active');
-      panel!.appendChild(b);
-    });
-    document.body.appendChild(panel!);
-    setTimeout(() => document.addEventListener('click', outside, true), 0);
-  };
-  const hidePanel = (): void => {
-    if (panel) {
-      panel.remove();
-      panel = null;
-      document.removeEventListener('click', outside, true);
-    }
-  };
-  const outside = (e: MouseEvent): void => {
-    if (panel && !panel.contains(e.target as Node) && e.target !== themeBtn)
-      hidePanel();
-  };
-  const startPress = (): void => {
-    pressTimer = setTimeout(showPanel, 500);
-  };
-  const clearPress = (): void => {
-    clearTimeout(pressTimer!);
-  };
-  themeBtn.addEventListener('mousedown', startPress);
-  themeBtn.addEventListener('touchstart', startPress, { passive: true });
-  ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'click'].forEach(
-    (ev: string) => themeBtn.addEventListener(ev, clearPress),
-  );
-  cleanups.push(() => {
-    themeBtn.removeAttribute('data-accent-bound');
-    themeBtn.removeEventListener('mousedown', startPress);
-    themeBtn.removeEventListener('touchstart', startPress);
-    ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'click'].forEach(
-      (ev: string) => themeBtn.removeEventListener(ev, clearPress),
-    );
-    hidePanel();
-  });
-}
-
+// ===== Cat click confetti =====
 function bindConfetti(): void {
   if (!APP_CONFIG.enableConfetti || reducedMotion) return;
   const cat = document.getElementById('maomao');
@@ -162,23 +76,9 @@ function bindConfetti(): void {
   }
   const handler = (): void => spawnConfetti(36);
   cat!.addEventListener('click', handler);
-  cleanups.push(() => {
-    cat!.removeEventListener('click', handler);
-    cat!.removeAttribute('data-confetti-bound');
-  });
 }
-// Expose for restore logic
-(window as any).__buildScrollProgress = buildScrollProgress;
-(window as any).__bindAccentPanel = bindAccentPanel;
-(window as any).__bindConfetti = bindConfetti;
 
-// Scroll progress bar
-buildScrollProgress();
-
-// Accent panel
-bindAccentPanel();
-
-// Console welcome + ASCII
+// ===== Console welcome + ASCII =====
 try {
   const bannerStyle: string =
     'color:#fff;background:linear-gradient(90deg,var(--accent,#f36),#333);padding:4px 10px;border-radius:4px 0 0 4px;font-weight:600';
@@ -280,7 +180,7 @@ try {
         b.onmouseleave = () => {
           b.style.background = 'rgba(255,255,255,.06)';
           b.style.color = '#ddd';
-          b.style.borderColor = 'rgba(255,255,255,.12)';
+          b.style.border = '1px solid rgba(255,255,255,.12)';
         };
         b.onmousedown = () => (b.style.transform = 'scale(.92)');
         b.onmouseup = () => (b.style.transform = '');
@@ -295,7 +195,6 @@ try {
       function closeAscii(): void {
         box.remove();
         document.removeEventListener('keydown', esc);
-        if (closeAsciiPanel === closeAscii) closeAsciiPanel = null;
       }
       closeBtn.addEventListener('click', closeAscii);
       btnGroup.append(copyBtn, closeBtn);
@@ -371,7 +270,6 @@ try {
           closeAscii();
         }
       };
-      closeAsciiPanel = closeAscii;
       document.addEventListener('keydown', esc);
 
       // Entry animation keyframe (if not defined)
@@ -388,102 +286,8 @@ try {
   }
 } catch (_) {}
 
+// Scroll progress bar
+buildScrollProgress();
+
 // Cat click confetti
 bindConfetti();
-
-// Restore features: rebuild released effects on demand
-export function restoreFeatures(level: number = 1): void {
-  if (!MEM_RELEASED) return; // not released, nothing to restore
-  buildScrollProgress();
-  bindAccentPanel();
-  bindConfetti();
-  // Cat restore
-  if ((window as any).initMaomao && !document.hidden) {
-    try {
-      (window as any).initMaomao();
-    } catch (_) {}
-  }
-  idleReleasedLevel1 = false;
-  setMemReleased(0);
-  if (console && console.log) console.log('[Onedays] features restored');
-}
-
-// Unified public interface: release non-critical effect resources
-export function releaseMemory(level: number = 1): void {
-  while (cleanups.length) {
-    try {
-      cleanups.pop()!();
-    } catch (_) {}
-  }
-  if (closeAsciiPanel) {
-    closeAsciiPanel();
-  } else {
-    const ascii = document.getElementById('ascii-layer');
-    if (ascii) ascii.remove();
-  }
-  if ((window as any).detachMaomao)
-    try {
-      (window as any).detachMaomao();
-    } catch (_) {}
-  setMemReleased(level);
-  if (console && console.log)
-    console.log('[Onedays] memory released (level ' + level + ')');
-}
-
-// === Idle auto-release ===
-(function idleManager(): void {
-  if (!APP_CONFIG.enableIdleAutoRelease) return;
-  const delay: number = parseInt(APP_CONFIG.idleReleaseDelay || '0', 10) || 60000;
-  const deepDelay: number = parseInt(APP_CONFIG.idleDeepReleaseDelay || '0', 10) || 0;
-  const autoRestore: boolean = !!APP_CONFIG.enableIdleAutoRestore;
-  let lastActive: number = Date.now();
-  let deepTimer: ReturnType<typeof setTimeout> | null = null;
-  let checkTimer: ReturnType<typeof setTimeout> | null = null;
-  const mark = (): void => {
-    lastActive = Date.now();
-    if (autoRestore && MEM_RELEASED) {
-      // User returned -> restore
-      restoreFeatures(MEM_RELEASED_LEVEL || 1);
-    }
-  };
-  const events: string[] = [
-    'mousemove',
-    'keydown',
-    'wheel',
-    'touchstart',
-    'scroll',
-    'visibilitychange',
-  ];
-  events.forEach((ev: string) =>
-    window.addEventListener(ev, mark, { passive: true }),
-  );
-  function loop(): void {
-    const idle: number = Date.now() - lastActive;
-    if (!idleReleasedLevel1 && idle > delay) {
-      if (!UPDATE_LOCK) {
-        // Update process locked, don't release
-        releaseMemory(1);
-        idleReleasedLevel1 = true;
-        if (deepDelay > 0) {
-          deepTimer = setTimeout(() => {
-            if (
-              MEM_RELEASED &&
-              Date.now() - lastActive > delay + deepDelay &&
-              !UPDATE_LOCK
-            )
-              releaseMemory(2);
-          }, deepDelay);
-        }
-      } else {
-        // Update lock present, defer release
-        lastActive = Date.now();
-      }
-    }
-    checkTimer = setTimeout(loop, Math.min(15000, delay));
-  }
-  loop();
-})();
-
-// === Bridge assignments ===
-(window as any).releaseMemory = releaseMemory;
-(window as any).restoreFeatures = restoreFeatures;

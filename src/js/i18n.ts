@@ -371,8 +371,5 @@ export const i18n = {
   translations,
 };
 
-// 桥接：保留 window 全局变量供尚未迁移的模块使用
-(window as any).__I18N__ = i18n;
-
 // 初始化
 init();

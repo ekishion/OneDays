@@ -3,7 +3,6 @@ import { APP_CONFIG } from './config';
 const rand = (a: number, b: number = a): number => Math.floor(Math.random() * (b - a + 1)) + a;
 
 let lastMove: number = 0;
-let globalCatEl: HTMLElement | null = null;
 let keyListener: ((e: KeyboardEvent) => void) | null = null;
 let safetyTimer: ReturnType<typeof setTimeout> | null = null;
 let hoverEvents: string[] = [];
@@ -25,7 +24,6 @@ export function initMaomao(): boolean {
   if (!el) return false;
   if ((el as any).__maomaoInited) return true;
   (el as any).__maomaoInited = true;
-  globalCatEl = el;
   const cfg = APP_CONFIG || {};
   const curTrans = getComputedStyle(el).transition || '';
   if (!/bottom|right/.test(curTrans)) {
@@ -79,38 +77,9 @@ export function initMaomao(): boolean {
   return true;
 }
 
-export function detachMaomao(): void {
-  if (!globalCatEl) return;
-  try {
-    hoverEvents.forEach((ev) =>
-      globalCatEl!.removeEventListener(ev, repositionCat),
-    );
-    if (keyListener) window.removeEventListener('keydown', keyListener);
-    if (safetyTimer) clearTimeout(safetyTimer);
-    if ((globalCatEl as any).__mmAutoTimer) clearTimeout((globalCatEl as any).__mmAutoTimer);
-    if ((globalCatEl as any).__mmResetEvents && (globalCatEl as any).__mmResetHandler) {
-      (globalCatEl as any).__mmResetEvents.forEach((ev: string) =>
-        window.removeEventListener(ev, (globalCatEl as any).__mmResetHandler),
-      );
-    }
-    if ((globalCatEl as any).__mmVisListener)
-      document.removeEventListener(
-        'visibilitychange',
-        (globalCatEl as any).__mmVisListener,
-      );
-  } catch (_) { /* ignore */ }
-  (globalCatEl as any).__maomaoInited = false;
-  globalCatEl = null;
-}
-
 // Auto-init on DOMContentLoaded or immediately
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initMaomao, { once: true });
 } else {
   initMaomao();
 }
-
-// Backward-compat bridge
-(window as any).initMaomao = initMaomao;
-(window as any).detachMaomao = detachMaomao;
-(window as any).duoMaomao = repositionCat;

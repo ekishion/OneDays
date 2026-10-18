@@ -4,7 +4,6 @@ import "./css/warmth.css";
 import "./css/maomao.css";
 
 import "./js/i18n";
-import "./js/config-flat";
 import "./js/config";
 import "./js/core";
 import "./js/theme";

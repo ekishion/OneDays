@@ -1,5 +1,5 @@
 import { APP_CONFIG } from './config';
-import { readStorage, removeStorage, writeStorage } from './runtime-guards';
+import { readStorage, writeStorage } from './runtime-guards';
 
 interface AnnouncementMessage {
   text: string;
@@ -51,10 +51,6 @@ if (box) {
     } else {
       const storeKey: string = cfg.announcementDismissKey || 'ann-card-v1';
       if (readStorage(storeKey)) {
-        (window as any).__announceRestore = () => {
-          removeStorage(storeKey);
-          location.reload();
-        };
         box.remove();
       } else {
         if (iconEl) iconEl.textContent = cfg.announcementIcon || '\u{1F4E2}';

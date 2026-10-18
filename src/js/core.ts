@@ -149,33 +149,27 @@ export function createToast(opts: ToastOptions): HTMLElement | undefined {
   return el;
 }
 
-// 桥接：保留 window 全局变量供尚未迁移的模块使用
-(window as any).createToast = createToast;
-
 // === DOMContentLoaded 初始化 ===
 document.addEventListener("DOMContentLoaded", () => {
   // 在线/离线状态提示
-  if (!(window as any).__NET_STATUS_BOUND__) {
-    (window as any).__NET_STATUS_BOUND__ = 1;
-    window.addEventListener("offline", () =>
-      createToast({
-        text: i18n.t("networkOffline"),
-        variant: "danger",
-        id: "net-off",
-        duration: 3000,
-        icon: "📡",
-      }),
-    );
-    window.addEventListener("online", () =>
-      createToast({
-        text: i18n.t("networkOnline"),
-        variant: "success",
-        id: "net-on",
-        duration: 2500,
-        icon: "✨",
-      }),
-    );
-  }
+  window.addEventListener("offline", () =>
+    createToast({
+      text: i18n.t("networkOffline"),
+      variant: "danger",
+      id: "net-off",
+      duration: 3000,
+      icon: "📡",
+    }),
+  );
+  window.addEventListener("online", () =>
+    createToast({
+      text: i18n.t("networkOnline"),
+      variant: "success",
+      id: "net-on",
+      duration: 2500,
+      icon: "✨",
+    }),
+  );
 
   // === Runtime 控制 ===
   if (APP_CONFIG.enableRuntime) {
@@ -208,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (rt) {
       setTimeout(
         () => removeSkeleton(rt),
-        APP_CONFIG.skeletonFadeDelay || APP_CONFIG.splash?.skeletonFadeDelay || 120,
+        APP_CONFIG.skeletonFadeDelay || 120,
       );
     }
   } else {
@@ -218,44 +212,6 @@ document.addEventListener("DOMContentLoaded", () => {
       runtimeEl.style.display = "none";
     }
   }
-
-  // 一言骨架去除：MutationObserver 优先，退化到定时器兜底
-  (function initHitokoto(): void {
-    const wrap = document.getElementById("hitokoto");
-    if (!wrap) return;
-    const target = document.getElementById("hitokoto_text");
-    if (!target) return;
-    const done = (): void => {
-      if (wrap.classList.contains("skeleton")) removeSkeleton(wrap as HTMLElement);
-      obs && obs.disconnect();
-      clearTimeout(killTimer);
-    };
-    let obs: MutationObserver | undefined;
-    try {
-      obs = new MutationObserver(() => {
-        if (
-          target.textContent &&
-          !/加载中|Loading|読み込み中/i.test(target.textContent)
-        )
-          done();
-      });
-      obs.observe(target, {
-        characterData: true,
-        subtree: true,
-        childList: true,
-      });
-    } catch (_) {
-      /* ignore */
-    }
-    // 兜底超时（4s）
-    const killTimer = setTimeout(done, 4000);
-    // 若脚本很快已填充
-    if (
-      target.textContent &&
-      !/加载中|Loading|読み込み中/i.test(target.textContent)
-    )
-      done();
-  })();
 
   initReveal();
 
@@ -304,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
       body.style.filter = "hue-rotate(360deg)";
       setTimeout(() => (body.style.filter = ""), 1200);
       createToast({
-        text: APP_CONFIG.konamiToastText || i18n.t("konamiEasterEgg"),
+        text: i18n.t("konamiEasterEgg"),
         id: "konami-eg",
         variant: "accent",
         duration: 3000,

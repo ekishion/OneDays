@@ -68,17 +68,11 @@ const MODE_OPTIONS: ModeOption[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Accent panel bridge                                               */
+/*  Accent panel                                                      */
 /* ------------------------------------------------------------------ */
 
 const accentPanelEnabled: boolean =
   APP_CONFIG.enableAccentPanel !== false && accents.length > 1;
-
-if (accentPanelEnabled) {
-  (window as any).__THEME_PANEL_SUPPORTS_ACCENTS__ = true;
-} else if ((window as any).__THEME_PANEL_SUPPORTS_ACCENTS__) {
-  (window as any).__THEME_PANEL_SUPPORTS_ACCENTS__ = false;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Accent auto-rotate                                                */
@@ -266,25 +260,15 @@ function updateBtn(): void {
   toggleBtn.setAttribute("data-accent", String(accentIdx));
 }
 
-function applyThemeMode(mode: string): void {
-  if (!MODE_OPTIONS.some((item) => item.mode === mode)) return;
-
-  // 显示遮罩
+// 遮罩动画：先显示遮罩，再应用变化，最后淡出
+function withThemeMask(apply: () => void): void {
   const mask = document.getElementById("themeMask");
   if (mask) {
     (mask as HTMLDivElement).hidden = false;
     requestAnimationFrame(() => mask.classList.add("show"));
   }
-
-  // 延迟应用主题变化，让遮罩先显示
   setTimeout(() => {
-    savedMode = mode;
-    writeStorage(THEME_KEY, savedMode);
-    applyEffective();
-    updateBtn();
-    refreshThemeButtons();
-
-    // 隐藏遮罩
+    apply();
     if (mask) {
       setTimeout(() => {
         mask.classList.remove("show");
@@ -292,6 +276,17 @@ function applyThemeMode(mode: string): void {
       }, 100);
     }
   }, 50);
+}
+
+function applyThemeMode(mode: string): void {
+  if (!MODE_OPTIONS.some((item) => item.mode === mode)) return;
+  withThemeMask(() => {
+    savedMode = mode;
+    writeStorage(THEME_KEY, savedMode);
+    applyEffective();
+    updateBtn();
+    refreshThemeButtons();
+  });
 }
 
 export function cycleThemeMode(): void {
@@ -346,11 +341,12 @@ function handlePointerDown(event: PointerEvent): void {
   }
   longPressTriggered = false;
   clearPressTimer();
-  pressTimer = window.setTimeout(() => {
-    longPressTriggered = true;
-    skipNextClick = true;
-    LanguagePanelManager.toggle();
-  }, LONG_PRESS_DELAY);
+    pressTimer = window.setTimeout(() => {
+      longPressTriggered = true;
+      skipNextClick = true;
+      if (isLanguagePanelOpen()) hideLanguagePanel();
+      else showLanguagePanel();
+    }, LONG_PRESS_DELAY);
 }
 
 function handlePointerUp(event: PointerEvent): void {
@@ -384,26 +380,10 @@ function clearPressTimer(): void {
 
 const darkListener = (): void => {
   if (savedMode === "auto") {
-    // 显示遮罩
-    const mask = document.getElementById("themeMask");
-    if (mask) {
-      (mask as HTMLDivElement).hidden = false;
-      requestAnimationFrame(() => mask.classList.add("show"));
-    }
-
-    // 延迟应用主题变化
-    setTimeout(() => {
+    withThemeMask(() => {
       applyEffective();
       updateBtn();
-
-      // 隐藏遮罩
-      if (mask) {
-        setTimeout(() => {
-          mask.classList.remove("show");
-          setTimeout(() => ((mask as HTMLDivElement).hidden = true), 300);
-        }, 100);
-      }
-    }, 50);
+    });
   }
 };
 
@@ -754,61 +734,6 @@ function refreshAccentButtons(): void {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Event manager                                                     */
-/* ------------------------------------------------------------------ */
-
-interface ListenerEntry {
-  listener: EventListenerOrEventListenerObject;
-  options?: AddEventListenerOptions | boolean;
-}
-
-const eventManager = {
-  listeners: new Map<string, ListenerEntry[]>(),
-
-  add(
-    type: string,
-    listener: EventListenerOrEventListenerObject,
-    options: AddEventListenerOptions | boolean = {},
-  ): void {
-    if (!this.listeners.has(type)) {
-      this.listeners.set(type, []);
-    }
-    this.listeners.get(type)!.push({ listener, options });
-    document.addEventListener(type, listener, options);
-  },
-
-  remove(type: string, listener: EventListenerOrEventListenerObject): void {
-    const listeners = this.listeners.get(type);
-    if (listeners) {
-      const index = listeners.findIndex((item) => item.listener === listener);
-      if (index > -1) {
-        listeners.splice(index, 1);
-        document.removeEventListener(type, listener);
-      }
-    }
-  },
-
-  removeAll(type: string): void {
-    const listeners = this.listeners.get(type);
-    if (listeners) {
-      listeners.forEach(({ listener, options }) => {
-        document.removeEventListener(type, listener, options);
-      });
-      this.listeners.delete(type);
-    }
-  },
-
-  clear(): void {
-    this.listeners.forEach((listeners, type) => {
-      listeners.forEach(({ listener }) => {
-        document.removeEventListener(type, listener);
-      });
-    });
-    this.listeners.clear();
-  },
-};
-
-/* ------------------------------------------------------------------ */
 /*  Language panel show / hide / position                             */
 /* ------------------------------------------------------------------ */
 
@@ -827,14 +752,9 @@ function showLanguagePanel(): void {
     }
   });
 
-  // 使用事件管理器添加事件监听器
-  eventManager.add("pointerdown", handleOutsidePress as EventListener, {
-    capture: true,
-  } as AddEventListenerOptions);
-  eventManager.add("keydown", handlePanelKeydown as EventListener, {
-    capture: true,
-  } as AddEventListenerOptions);
-  window.addEventListener("resize", debouncedPositionPanel);
+  document.addEventListener("pointerdown", handleOutsidePress, true);
+  document.addEventListener("keydown", handlePanelKeydown, true);
+  window.addEventListener("resize", positionLanguagePanel);
   window.addEventListener("scroll", handlePanelScroll, true);
 }
 
@@ -843,10 +763,9 @@ function hideLanguagePanel(): void {
 
   langPanel.classList.remove("open");
 
-  // 使用事件管理器移除事件监听器
-  eventManager.removeAll("pointerdown");
-  eventManager.removeAll("keydown");
-  window.removeEventListener("resize", debouncedPositionPanel);
+  document.removeEventListener("pointerdown", handleOutsidePress, true);
+  document.removeEventListener("keydown", handlePanelKeydown, true);
+  window.removeEventListener("resize", positionLanguagePanel);
   window.removeEventListener("scroll", handlePanelScroll, true);
 
   setTimeout(() => {
@@ -976,101 +895,11 @@ function focusPreviousElement(
   elements[prevIndex]?.focus();
 }
 
-// 防抖函数
-function debounce<T extends (...args: any[]) => void>(
-  func: T,
-  wait: number,
-): (...args: Parameters<T>) => void {
-  let timeout: ReturnType<typeof setTimeout>;
-  return function executedFunction(...args: Parameters<T>) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-// 防抖的定位函数
-const debouncedPositionPanel = debounce(positionLanguagePanel, 100);
-
-/* ------------------------------------------------------------------ */
-/*  Language panel manager                                             */
-/* ------------------------------------------------------------------ */
-
-const LanguagePanelManager = {
-  // 面板元素引用
-  elements: {} as Record<string, HTMLElement>,
-
-  // 初始化面板
-  init(): void {
-    this.createPanel();
-    this.bindEvents();
-  },
-
-  // 创建面板结构
-  createPanel(): void {
-    try {
-      ensureLanguagePanel();
-    } catch (error) {
-      console.error("[Theme Panel] Failed to create language panel:", error);
-    }
-  },
-
-  // 绑定事件
-  bindEvents(): void {
-    window.addEventListener("languageChanged", () => {
-      this.updateTexts();
-      if (this.isVisible()) {
-        this.render();
-      }
-    });
-  },
-
-  // 更新文本
-  updateTexts(): void {
-    updateLanguagePanelTexts();
-  },
-
-  // 渲染面板
-  render(): void {
-    renderLanguagePanel();
-  },
-
-  // 显示面板
-  show(): void {
-    showLanguagePanel();
-  },
-
-  // 隐藏面板
-  hide(): void {
-    hideLanguagePanel();
-  },
-
-  // 检查面板是否可见
-  isVisible(): boolean {
-    return !!langPanel && !langPanel.hidden;
-  },
-
-  // 切换面板显示状态
-  toggle(): void {
-    if (this.isVisible()) {
-      this.hide();
-    } else {
-      this.show();
-    }
-  },
-};
-
 /* ------------------------------------------------------------------ */
 /*  Bootstrap                                                         */
 /* ------------------------------------------------------------------ */
 
 initAutoRotate();
-
-// 初始化语言面板管理器
-LanguagePanelManager.init();
 
 function handlePanelScroll(): void {
   hideLanguagePanel();

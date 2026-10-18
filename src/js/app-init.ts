@@ -41,7 +41,6 @@ if (subtitle) {
     if (done) return;
     done = true;
     splash.classList.add('fade-out');
-    document.dispatchEvent(new CustomEvent('splash:fade'));
   }
   function finish(): void {
     const elapsed = performance.now() - START;
@@ -90,6 +89,3 @@ if (subtitle) {
       .catch(() => {});
   }
 })();
-
-// Signal init complete
-document.dispatchEvent(new CustomEvent('app:init'));

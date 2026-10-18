@@ -78,20 +78,6 @@ if (!cfg.enableSplash) {
       }
     });
 
-    const progressObserver = new MutationObserver(() => {
-      if (bar && bar.style.width === '100%') {
-        progressObserver.disconnect();
-      }
-    });
-
-    if (bar) {
-      progressObserver.observe(bar, {
-        attributes: true,
-        attributeFilter: ['style'],
-      });
-      setTimeout(() => progressObserver.disconnect(), 30000);
-    }
-
     window.addEventListener('beforeunload', () => {
       const splashEl = document.getElementById('splash');
       if (splashEl) {
@@ -119,8 +105,6 @@ function ensureSplashStructure(root: HTMLElement, config: Record<string, any>): 
   title.className = 'splash-matrix-title';
   const titleText: string =
     config.splashHeading ||
-    config.splash?.heading ||
-    config.meta?.title ||
     config.title ||
     '忆窝';
   title.textContent = titleText;
@@ -129,8 +113,6 @@ function ensureSplashStructure(root: HTMLElement, config: Record<string, any>): 
   subtitle.className = 'splash-matrix-subtitle';
   const subtitleText: string =
     config.splashSubheading ||
-    config.splash?.subheading ||
-    config.meta?.subtitle ||
     'Digital dreams are loading…';
   subtitle.textContent = subtitleText;
 

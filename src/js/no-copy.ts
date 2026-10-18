@@ -4,7 +4,7 @@ import { i18n } from './i18n';
 const last: Record<string, number> = { f12: 0, ctx: 0 };
 const COOL: number = 3000;
 
-function showToast(msg: string, type: string): void {
+function showToast(type: string): void {
   const now = Date.now();
   if (now - last[type] < COOL) return;
   last[type] = now;
@@ -27,7 +27,7 @@ function showToast(msg: string, type: string): void {
   document.addEventListener(t, (e: KeyboardEvent) => {
     if (e.key === 'F12') {
       e.preventDefault();
-      showToast('', 'f12');
+      showToast('f12');
     }
   }),
 );
@@ -43,7 +43,7 @@ const isSelectAllowed = (el: EventTarget | null): boolean =>
 document.addEventListener('contextmenu', (e: MouseEvent) => {
   if (!isSelectAllowed(e.target)) {
     e.preventDefault();
-    showToast('', 'ctx');
+    showToast('ctx');
   }
 });
 
@@ -51,6 +51,6 @@ document.addEventListener('contextmenu', (e: MouseEvent) => {
 document.addEventListener('selectstart', (e: Event) => {
   if (!isSelectAllowed(e.target)) {
     e.preventDefault();
-    showToast('', 'sel');
+    showToast('sel');
   }
 });
