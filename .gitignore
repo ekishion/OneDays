@@ -4,4 +4,7 @@ dist/
 .vite/
 .env
 
-.claude
+.claude/
+.zcode/
+.codex/
+.agents/
